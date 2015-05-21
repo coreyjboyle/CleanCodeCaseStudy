@@ -75,6 +75,7 @@ public class SocketServerTest {
       // TODO - MDM - Possible Race Condition?  Have seen hanging test.
       server.start();
       new Socket("localhost", port);
+      Thread.sleep(1000);
       synchronized(service) {
         service.wait();
       }
