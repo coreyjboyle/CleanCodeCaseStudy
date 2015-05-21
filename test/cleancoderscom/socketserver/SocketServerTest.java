@@ -23,13 +23,26 @@ public class SocketServerTest {
   }
 
   public static abstract class TestSocketService implements SocketService {
+    private boolean served = false;
+
     public void serve(Socket s) {
       try {
         doService(s);
-        synchronized(this) { notify(); }
+        synchronized(this) {
+          served = true;
+          notify();
+        }
         s.close();
       } catch(IOException e) {
         e.printStackTrace();
+      }
+    }
+
+    public void waitForServeToComplete() throws InterruptedException {
+      synchronized (this) {
+        while (!served) {
+          wait();
+        }
       }
     }
 
@@ -72,13 +85,10 @@ public class SocketServerTest {
 
     @Test
     public void acceptsAnIncomingConnection() throws Exception {
-      // TODO - MDM - Possible Race Condition?  Have seen hanging test.
       server.start();
       new Socket("localhost", port);
       Thread.sleep(1000);
-      synchronized(service) {
-        service.wait();
-      }
+      service.waitForServeToComplete();
       server.stop();
 
       assertEquals(1, service.connections);
@@ -86,16 +96,13 @@ public class SocketServerTest {
 
     @Test
     public void acceptsMultipleIncomingConnections() throws Exception {
-      // TODO - MDM - Possible Race Condition?  Have seen hanging test.
       server.start();
       new Socket("localhost", port);
-      synchronized(service) {
-        service.wait();
-      }
+      Thread.sleep(1000);
+      service.waitForServeToComplete();
       new Socket("localhost", port);
-      synchronized(service) {
-        service.wait();
-      }
+      Thread.sleep(1000);
+      service.waitForServeToComplete();
       server.stop();
 
       assertEquals(2, service.connections);
@@ -129,14 +136,12 @@ public class SocketServerTest {
 
     @Test
     public void canSendAndReceiveData() throws Exception {
-      // TODO - MDM - Possible Race Condition?  Have seen hanging test.
       server.start();
       Socket s = new Socket("localhost", port);
       OutputStream os = s.getOutputStream();
       os.write("hello\n".getBytes());
-      synchronized(readingService) {
-        readingService.wait();
-      }
+      Thread.sleep(1000);
+      readingService.waitForServeToComplete();
       server.stop();
 
       assertEquals("hello", readingService.message);
@@ -172,14 +177,12 @@ public class SocketServerTest {
 
     @Test
     public void canEcho() throws Exception {
-      // TODO - MDM - Possible Race Condition?  Have seen hanging test.
       server.start();
       Socket s = new Socket("localhost", port);
       OutputStream os = s.getOutputStream();
       os.write("echo\n".getBytes());
-      synchronized(echoService) {
-        echoService.wait();
-      }
+      Thread.sleep(1000);
+      echoService.waitForServeToComplete();
       InputStream is = s.getInputStream();
       InputStreamReader isr = new InputStreamReader(is);
       BufferedReader br = new BufferedReader(isr);
